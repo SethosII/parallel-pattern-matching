@@ -175,6 +175,7 @@ char* createRectangle(Config* config) {
 			config->columns * config->rows * sizeof(char));
 	for (int n = 0; n < config->rulesN; n++) {
 		switch (config->rules[n * RULE_MEMBERS]) {
+
 		// white
 		case 0:
 			for (int i = config->rules[n * RULE_MEMBERS + 1];
@@ -185,6 +186,7 @@ char* createRectangle(Config* config) {
 				}
 			}
 			break;
+
 			// black
 		case 1:
 			for (int i = config->rules[n * RULE_MEMBERS + 1];
@@ -195,13 +197,14 @@ char* createRectangle(Config* config) {
 				}
 			}
 			break;
+
 			// toggle
 		case 2:
 			for (int i = config->rules[n * RULE_MEMBERS + 1];
 					i <= config->rules[n * RULE_MEMBERS + 3]; i++) {
 				for (int j = config->rules[n * RULE_MEMBERS + 2];
 						j <= config->rules[n * RULE_MEMBERS + 4]; j++) {
-					if (rectangle[i * config->columns + j] == '-') {
+					if (rectangle[i * config->columns + j] == WHITE) {
 						rectangle[i * config->columns + j] = BLACK;
 					} else {
 						rectangle[i * config->columns + j] = WHITE;
@@ -372,8 +375,8 @@ int* search(const char* rectangle, const int rows, const int columns) {
 	if (!foundRowEnd) {
 		if (rectangle[rows * columns - 1] == BLACK) {
 			// valid and last field is black
-			result[3] = (rows - 1);
-			result[4] = (columns - 1);
+			result[3] = rows - 1;
+			result[4] = columns - 1;
 			foundColumnEnd = 1;
 			foundRowEnd = 1;
 		}
@@ -381,7 +384,7 @@ int* search(const char* rectangle, const int rows, const int columns) {
 	if (!foundRowEnd) {
 		if (foundStart && foundColumnEnd) {
 			// last row end has valid black fields
-			result[3] = (rows - 1);
+			result[3] = rows - 1;
 			foundRowEnd = 1;
 		}
 	}
