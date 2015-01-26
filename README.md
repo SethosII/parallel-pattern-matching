@@ -26,7 +26,7 @@ An example can be seen here:
 
 The first line contains the number of rows and columns of the matrix. Afterwards is the number of rules defined. The rules consist of five values and describe a rectangle within the matrix. The first value denotes the "color": 0 for "white", 1 for "black" and 2 for toggle. Toggle switches a "white" field to a "black" field and vice versa. The other four values describe the rectangle: the first two denote the upper left angle and the last two the lower right angle. Both are inclusive. This file can now be passed to the program as parameter.
 
-Example output (`mpirun -np 1 ./mustererkennung config.txt`):
+Example output (`mpirun -np 1 ./mustererkennung -f config.txt -v`):
 ```
 Starting
 Config:
