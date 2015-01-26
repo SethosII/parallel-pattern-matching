@@ -8,14 +8,14 @@ const int RULE_MEMBERS = 5;
 const char BLACK = '#';
 const char WHITE = '-';
 
-typedef struct Config{
+typedef struct Config {
 	int columns;
 	int rows;
 	int rulesN;
 	int* rules;
 } Config;
 
-typedef struct Handle{
+typedef struct Handle {
 	char* configFile;
 	int help;
 	int verbose;
