@@ -8,16 +8,23 @@ const int RULE_MEMBERS = 5;
 const char BLACK = '#';
 const char WHITE = '-';
 
-typedef struct {
+typedef struct Config{
 	int columns;
 	int rows;
 	int rulesN;
 	int* rules;
 } Config;
 
+typedef struct Handle{
+	char* configFile;
+	int help;
+	int verbose;
+} Handle;
+
 char* createRectangle(Config* config);
 void printConfig(const Config* config);
 void printRectangle(const char* rectangle, const int rows, const int columns);
+Handle processParameters(int argc, char* argv[]);
 void readConfig(Config* config, const char inputFileName[]);
 int* search(const char* rectangle, const int rows, const int columns);
 
@@ -33,6 +40,7 @@ int main(int argc, char* argv[]) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
 	Config* config;
+	Handle handle = processParameters(argc, argv);
 	char* rectangle = NULL;
 	int rows;
 	int columns;
@@ -41,17 +49,21 @@ int main(int argc, char* argv[]) {
 		printf("Starting\n");
 
 		config = &(Config ) { .columns = 0, .rows = 0, .rules = NULL };
-		readConfig(config, argv[1]);
+		readConfig(config, handle.configFile);
 		rows = config->rows;
 		columns = config->columns;
 
-		printf("Config:\n");
-		printConfig(config);
+		if (handle.verbose) {
+			printf("Config:\n");
+			printConfig(config);
+		}
 
 		rectangle = createRectangle(config);
 
-		printf("Rectangle:\n");
-		printRectangle(rectangle, rows, columns);
+		if (handle.verbose) {
+			printf("Rectangle:\n");
+			printRectangle(rectangle, rows, columns);
+		}
 	}
 
 	double start = MPI_Wtime();
@@ -139,17 +151,19 @@ int main(int argc, char* argv[]) {
 		}
 		printf("\n");
 
-		if (result[0] == 0) {
-			printf("No black rectangle!\n");
-		} else if (result[0] == 1) {
-			printf("One black rectangle!\n");
-			printf("Coordinates:\n");
-			for (int i = 1; i < RULE_MEMBERS; i++) {
-				printf("%d ", result[i]);
+		if (handle.verbose) {
+			if (result[0] == 0) {
+				printf("No black rectangle!\n");
+			} else if (result[0] == 1) {
+				printf("One black rectangle!\n");
+				printf("Coordinates:\n");
+				for (int i = 1; i < RULE_MEMBERS; i++) {
+					printf("%d ", result[i]);
+				}
+				printf("\n");
+			} else if (result[0] == 2) {
+				printf("More then one black rectangle!\n");
 			}
-			printf("\n");
-		} else if (result[0] == 2) {
-			printf("More then one black rectangle!\n");
 		}
 	}
 
@@ -243,6 +257,53 @@ void printRectangle(const char* rectangle, const int rows, const int columns) {
 		}
 		printf("\n");
 	}
+}
+
+/*
+ * process the command line parameters and return a Handle struct with them
+ */
+Handle processParameters(int argc, char* argv[]) {
+	Handle handle = { };
+
+	if (argc > 1) {
+		while ((argc > 1) && (argv[1][0] == '-')) {
+			switch (argv[1][1]) {
+
+			case 'f':
+				// set config file location
+				handle.configFile = &argv[2][0];
+				++argv;
+				--argc;
+				break;
+
+			case 'h':
+				// print help message
+				printf(
+						"Parameters:\n"
+								"\t-f <file>\tconfig file location\n"
+								"\t-h\t\tprint this help message\n"
+								"\t-v\t\tprint more information\n"
+								"\nThis program is distributed under the terms of the LGPLv3 license\n");
+				handle.help = 1;
+				break;
+
+			case 'v':
+				// print more information
+				handle.verbose = 1;
+				break;
+
+			default:
+				printf("Wrong parameter: %s\n", argv[1]);
+				printf("-h for help\n");
+				exit(1);
+			}
+
+			++argv;
+			--argc;
+		}
+	}
+
+	return handle;
 }
 
 /*
