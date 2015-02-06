@@ -30,6 +30,12 @@
 Debug/mustererkennung
 Release/mustererkennung
 
+# Eclipse
+Debug/
+Release/
+.cproject
+.project
+
 # other
 config.txt
 out.txt
