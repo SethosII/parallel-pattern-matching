@@ -1,4 +1,5 @@
 #include <limits.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,8 +18,8 @@ typedef struct Config {
 
 typedef struct Handle {
 	char* configFile;
-	int help;
-	int verbose;
+	bool help;
+	bool verbose;
 } Handle;
 
 char* createRectangle(Config* config);
@@ -54,7 +55,7 @@ int main(int argc, char* argv[]) {
 		columns = config->columns;
 
 		if (handle.verbose) {
-			printf("Config:\n");
+			printf("Configuration:\n");
 			printConfig(config);
 		}
 
@@ -101,12 +102,12 @@ int main(int argc, char* argv[]) {
 		result[2] = INT_MIN;
 		result[3] = INT_MAX;
 		result[4] = INT_MAX;
-		int breaked = 0;
-		int nextIsWrong = 0;
+		bool breaked = false;
+		bool nextIsWrong = false;
 		for (int i = 0; i < size; i++) {
 			if (results[i * RULE_MEMBERS] == 2) {
 				// more then one black rectangle
-				breaked = 1;
+				breaked = true;
 				break;
 			} else if (results[i * RULE_MEMBERS] == 1) {
 				if (result[0] == 0) {
@@ -121,12 +122,12 @@ int main(int argc, char* argv[]) {
 									&& ((result[3] + 1)
 											!= (results[i * RULE_MEMBERS + 1])))) {
 						// gap between two black rectangles
-						breaked = 1;
+						breaked = true;
 						break;
 					} else if (result[2] != results[i * RULE_MEMBERS + 2]
 							|| result[4] != results[i * RULE_MEMBERS + 4]) {
 						// vertical shifted rectangles
-						breaked = 1;
+						breaked = true;
 						break;
 					} else {
 						result[3] = results[i * RULE_MEMBERS + 3];
@@ -135,7 +136,7 @@ int main(int argc, char* argv[]) {
 				}
 				if ((results[i * RULE_MEMBERS + 3] + 1) % rowsPart != 0) {
 					// black rectangle isn't at the end of the part
-					nextIsWrong = 1;
+					nextIsWrong = true;
 				}
 			}
 		}
@@ -182,7 +183,7 @@ int main(int argc, char* argv[]) {
 }
 
 /*
- * create rectangle from config
+ * create rectangle from configuration
  */
 char* createRectangle(Config* config) {
 	char* rectangle = (char*) malloc(
@@ -234,7 +235,7 @@ char* createRectangle(Config* config) {
 }
 
 /*
- * print the config
+ * print the configuration
  */
 void printConfig(const Config* config) {
 	printf("%d %d\n", config->rows, config->columns);
@@ -270,7 +271,7 @@ Handle processParameters(int argc, char* argv[]) {
 			switch (argv[1][1]) {
 
 			case 'f':
-				// set config file location
+				// set configuration file location
 				handle.configFile = &argv[2][0];
 				++argv;
 				--argc;
@@ -280,16 +281,16 @@ Handle processParameters(int argc, char* argv[]) {
 				// print help message
 				printf(
 						"Parameters:\n"
-								"\t-f <file>\tconfig file location\n"
+								"\t-f <file>\tconfiguration file location\n"
 								"\t-h\t\tprint this help message\n"
 								"\t-v\t\tprint more information\n"
 								"\nThis program is distributed under the terms of the LGPLv3 license\n");
-				handle.help = 1;
+				handle.help = true;
 				break;
 
 			case 'v':
 				// print more information
-				handle.verbose = 1;
+				handle.verbose = true;
 				break;
 
 			default:
@@ -307,7 +308,7 @@ Handle processParameters(int argc, char* argv[]) {
 }
 
 /*
- * read the specified config file
+ * read the specified configuration file
  */
 void readConfig(Config* config, const char inputFileName[]) {
 	// open the file
@@ -344,7 +345,7 @@ void readConfig(Config* config, const char inputFileName[]) {
 	// EOF result of *scanf indicates an error
 	if (fscanfResult == EOF) {
 		printf(
-				"Something went wrong during reading of config file, exiting!\n");
+				"Something went wrong during reading of configuration file, exiting!\n");
 		exit(1);
 	}
 }
@@ -359,9 +360,9 @@ int* search(const char* rectangle, const int rows, const int columns) {
 	result[2] = INT_MIN;
 	result[3] = INT_MAX;
 	result[4] = INT_MAX;
-	int foundStart = 0;
-	int foundRowEnd = 0;
-	int foundColumnEnd = 0;
+	bool foundStart = false;
+	bool foundRowEnd = false;
+	bool foundColumnEnd = false;
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < columns; j++) {
 			if (rectangle[i * columns + j] == WHITE) {
@@ -378,7 +379,7 @@ int* search(const char* rectangle, const int rows, const int columns) {
 									if (j == result[2]) {
 										// white field under first black field in previos row
 										result[3] = i - 1;
-										foundRowEnd = 1;
+										foundRowEnd = true;
 									} else {
 										goto moreThenOne;
 									}
@@ -388,13 +389,13 @@ int* search(const char* rectangle, const int rows, const int columns) {
 							if (i == result[1]) {
 								// same row as first black field, column end found
 								result[4] = j - 1;
-								foundColumnEnd = 1;
+								foundColumnEnd = true;
 							} else {
 								// last element of previous row was a black field
 								result[3] = i - 1;
 								result[4] = columns - 1;
-								foundColumnEnd = 1;
-								foundRowEnd = 1;
+								foundColumnEnd = true;
+								foundRowEnd = true;
 							}
 						}
 					}
@@ -406,7 +407,7 @@ int* search(const char* rectangle, const int rows, const int columns) {
 						if (j == 0 && !foundColumnEnd) {
 							// previous row ended with black field
 							result[4] = columns - 1;
-							foundColumnEnd = 1;
+							foundColumnEnd = true;
 						} else if (foundColumnEnd) {
 							if (j <= result[4]) {
 								if (foundRowEnd) {
@@ -428,7 +429,7 @@ int* search(const char* rectangle, const int rows, const int columns) {
 					result[0] = 1;
 					result[1] = i;
 					result[2] = j;
-					foundStart = 1;
+					foundStart = true;
 				}
 			}
 		}
@@ -438,15 +439,15 @@ int* search(const char* rectangle, const int rows, const int columns) {
 			// valid and last field is black
 			result[3] = rows - 1;
 			result[4] = columns - 1;
-			foundColumnEnd = 1;
-			foundRowEnd = 1;
+			foundColumnEnd = true;
+			foundRowEnd = true;
 		}
 	}
 	if (!foundRowEnd) {
 		if (foundStart && foundColumnEnd) {
 			// last row end has valid black fields
 			result[3] = rows - 1;
-			foundRowEnd = 1;
+			foundRowEnd = true;
 		}
 	}
 	if (!foundStart) {
