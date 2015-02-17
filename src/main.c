@@ -1,8 +1,11 @@
+// C standard header files
 #include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// other header files
 #include <mpi.h>
 
 const int RULE_MEMBERS = 5;
@@ -12,7 +15,7 @@ const char WHITE = '-';
 typedef struct Config {
 	int columns;
 	int rows;
-	int rulesN;
+	int rulesCount;
 	int* rules;
 } Config;
 
@@ -39,12 +42,32 @@ int main(int argc, char* argv[]) {
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Datatype MPI_HANDLE;
+	int blockCounts[2] = { 1, 2 };
+	MPI_Aint width[2];
+	MPI_Type_extent(MPI_UNSIGNED, &width[0]);
+	MPI_Type_extent(MPI_C_BOOL, &width[1]);
+	MPI_Aint offsets[2] = { 0, 1 * width[0] };
+	MPI_Datatype oldTypes[2] = { MPI_UNSIGNED, MPI_C_BOOL };
+	MPI_Type_struct(2, blockCounts, offsets, oldTypes, &MPI_HANDLE);
+	MPI_Type_commit(&MPI_HANDLE);
 
 	Config* config;
-	Handle handle = processParameters(argc, argv);
+	Handle handle;
 	char* rectangle = NULL;
 	int rows;
 	int columns;
+
+	if (rank == 0) {
+		// process command line parameters
+		handle = processParameters(argc, argv);
+	}
+
+	MPI_Bcast(&handle, 1, MPI_HANDLE, 0, MPI_COMM_WORLD);
+	if (handle.help) {
+		MPI_Finalize();
+		exit(EXIT_SUCCESS);
+	}
 
 	if (rank == 0) {
 		printf("Starting\n");
@@ -118,9 +141,9 @@ int main(int argc, char* argv[]) {
 				} else {
 					// all other rectangles
 					if (nextIsWrong
-							|| ((result[0] == 1)
-									&& ((result[3] + 1)
-											!= (results[i * RULE_MEMBERS + 1])))) {
+							|| (result[0] == 1
+									&& result[3] + 1
+											!= results[i * RULE_MEMBERS + 1])) {
 						// gap between two black rectangles
 						breaked = true;
 						break;
@@ -156,8 +179,8 @@ int main(int argc, char* argv[]) {
 			if (result[0] == 0) {
 				printf("No black rectangle!\n");
 			} else if (result[0] == 1) {
-				printf("One black rectangle!\n");
-				printf("Coordinates:\n");
+				printf("One black rectangle!\n"
+						"Coordinates:\n");
 				for (int i = 1; i < RULE_MEMBERS; i++) {
 					printf("%d ", result[i]);
 				}
@@ -179,7 +202,7 @@ int main(int argc, char* argv[]) {
 
 	MPI_Finalize();
 
-	return 0;
+	return EXIT_SUCCESS;
 }
 
 /*
@@ -188,11 +211,10 @@ int main(int argc, char* argv[]) {
 char* createRectangle(Config* config) {
 	char* rectangle = (char*) malloc(
 			config->columns * config->rows * sizeof(char));
-	for (int n = 0; n < config->rulesN; n++) {
+	for (int n = 0; n < config->rulesCount; n++) {
 		switch (config->rules[n * RULE_MEMBERS]) {
-
-		// white
 		case 0:
+			// white
 			for (int i = config->rules[n * RULE_MEMBERS + 1];
 					i <= config->rules[n * RULE_MEMBERS + 3]; i++) {
 				for (int j = config->rules[n * RULE_MEMBERS + 2];
@@ -201,9 +223,8 @@ char* createRectangle(Config* config) {
 				}
 			}
 			break;
-
-			// black
 		case 1:
+			// black
 			for (int i = config->rules[n * RULE_MEMBERS + 1];
 					i <= config->rules[n * RULE_MEMBERS + 3]; i++) {
 				for (int j = config->rules[n * RULE_MEMBERS + 2];
@@ -212,9 +233,8 @@ char* createRectangle(Config* config) {
 				}
 			}
 			break;
-
-			// toggle
 		case 2:
+			// toggle
 			for (int i = config->rules[n * RULE_MEMBERS + 1];
 					i <= config->rules[n * RULE_MEMBERS + 3]; i++) {
 				for (int j = config->rules[n * RULE_MEMBERS + 2];
@@ -239,8 +259,8 @@ char* createRectangle(Config* config) {
  */
 void printConfig(const Config* config) {
 	printf("%d %d\n", config->rows, config->columns);
-	printf("%d\n", config->rulesN);
-	for (int i = 0; i < config->rulesN; i++) {
+	printf("%d\n", config->rulesCount);
+	for (int i = 0; i < config->rulesCount; i++) {
 		for (int j = 0; j < RULE_MEMBERS; j++) {
 			printf("%d ", config->rules[i * RULE_MEMBERS + j]);
 		}
@@ -266,41 +286,31 @@ void printRectangle(const char* rectangle, const int rows, const int columns) {
 Handle processParameters(int argc, char* argv[]) {
 	Handle handle = { };
 
-	if (argc > 1) {
-		while ((argc > 1) && (argv[1][0] == '-')) {
-			switch (argv[1][1]) {
-
-			case 'f':
-				// set configuration file location
-				handle.configFile = &argv[2][0];
-				++argv;
-				--argc;
-				break;
-
-			case 'h':
-				// print help message
-				printf(
-						"Parameters:\n"
-								"\t-f <file>\tconfiguration file location\n"
-								"\t-h\t\tprint this help message\n"
-								"\t-v\t\tprint more information\n"
-								"\nThis program is distributed under the terms of the LGPLv3 license\n");
-				handle.help = true;
-				break;
-
-			case 'v':
-				// print more information
-				handle.verbose = true;
-				break;
-
-			default:
-				printf("Wrong parameter: %s\n", argv[1]);
-				printf("-h for help\n");
-				exit(1);
-			}
-
-			++argv;
-			--argc;
+	for (int currentArgument = 1; currentArgument < argc; currentArgument++) {
+		switch (argv[currentArgument][1]) {
+		case 'f':
+			// set configuration file location
+			handle.configFile = &argv[currentArgument + 1][0];
+			currentArgument++;
+			break;
+		case 'h':
+			// print help message
+			printf(
+					"Parameters:\n"
+							"\t-f <file>\tconfiguration file location\n"
+							"\t-h\t\tprint this help message\n"
+							"\t-v\t\tprint more information\n"
+							"\nThis program is distributed under the terms of the LGPLv3 license\n");
+			handle.help = true;
+			break;
+		case 'v':
+			// print more information
+			handle.verbose = true;
+			break;
+		default:
+			fprintf(stderr, "Wrong parameter: %s\n"
+					"-h for help\n", argv[currentArgument]);
+			exit(EXIT_FAILURE);
 		}
 	}
 
@@ -316,8 +326,8 @@ void readConfig(Config* config, const char inputFileName[]) {
 	const char* inputMode = "r";
 	inputFile = fopen(inputFileName, inputMode);
 	if (inputFile == NULL) {
-		printf("Could not open input file, exiting!\n");
-		exit(1);
+		fprintf(stderr, "Couldn't open input file, exiting!\n");
+		exit(EXIT_FAILURE);
 	}
 
 	// first line contains number of rows and columns
@@ -325,14 +335,24 @@ void readConfig(Config* config, const char inputFileName[]) {
 			&config->columns);
 
 	// second line contains number of entries
-	fscanfResult = fscanf(inputFile, "%d", &config->rulesN);
-	config->rules = (int*) malloc(RULE_MEMBERS * config->rulesN * sizeof(int));
+	fscanfResult = fscanf(inputFile, "%d", &config->rulesCount);
+	config->rules = (int*) malloc(
+			RULE_MEMBERS * config->rulesCount * sizeof(int));
 
 	// all lines after the first contain the entries, values stored as "type r1 c1 r2 c2"
 	int type, r1, c1, r2, c2;
-	for (int i = 0; i < config->rulesN; i++) {
+	for (int i = 0; i < config->rulesCount; i++) {
 		fscanfResult = fscanf(inputFile, "%d %d %d %d %d", &type, &r1, &c1, &r2,
 				&c2);
+
+		// EOF result of *scanf indicates an error
+		if (fscanfResult == EOF) {
+			fprintf(stderr,
+					"Something went wrong during reading of configuration file, exiting!\n");
+			fclose(inputFile);
+			exit(EXIT_FAILURE);
+		}
+
 		config->rules[i * RULE_MEMBERS] = type;
 		config->rules[i * RULE_MEMBERS + 1] = r1;
 		config->rules[i * RULE_MEMBERS + 2] = c1;
@@ -341,13 +361,6 @@ void readConfig(Config* config, const char inputFileName[]) {
 	}
 
 	fclose(inputFile);
-
-	// EOF result of *scanf indicates an error
-	if (fscanfResult == EOF) {
-		printf(
-				"Something went wrong during reading of configuration file, exiting!\n");
-		exit(1);
-	}
 }
 
 /*
@@ -367,36 +380,34 @@ int* search(const char* rectangle, const int rows, const int columns) {
 		for (int j = 0; j < columns; j++) {
 			if (rectangle[i * columns + j] == WHITE) {
 				// white field
-				if (foundStart) {
-					if (j >= result[2]) {
-						if (foundColumnEnd) {
-							if (j <= result[4]) {
-								if (foundRowEnd) {
-									if (i <= result[3]) {
-										goto moreThenOne;
-									}
+				if (foundStart && j >= result[2]) {
+					if (foundColumnEnd) {
+						if (j <= result[4]) {
+							if (foundRowEnd) {
+								if (i <= result[3]) {
+									goto moreThenOne;
+								}
+							} else {
+								if (j == result[2]) {
+									// white field under first black field in previous row
+									result[3] = i - 1;
+									foundRowEnd = true;
 								} else {
-									if (j == result[2]) {
-										// white field under first black field in previos row
-										result[3] = i - 1;
-										foundRowEnd = true;
-									} else {
-										goto moreThenOne;
-									}
+									goto moreThenOne;
 								}
 							}
+						}
+					} else {
+						if (i == result[1]) {
+							// same row as first black field, column end found
+							result[4] = j - 1;
+							foundColumnEnd = true;
 						} else {
-							if (i == result[1]) {
-								// same row as first black field, column end found
-								result[4] = j - 1;
-								foundColumnEnd = true;
-							} else {
-								// last element of previous row was a black field
-								result[3] = i - 1;
-								result[4] = columns - 1;
-								foundColumnEnd = true;
-								foundRowEnd = true;
-							}
+							// last element of previous row was a black field
+							result[3] = i - 1;
+							result[4] = columns - 1;
+							foundColumnEnd = true;
+							foundRowEnd = true;
 						}
 					}
 				}
